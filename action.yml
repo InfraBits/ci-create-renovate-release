@@ -6,10 +6,15 @@ inputs:
     description: GitHub token to use for API calls
     required: true
 
+  create-release:
+    required: false
+    type: string
+    default: "true"
+
 outputs:
   tag_name:
     description: The tag name of the created release, or empty if no release was created
-    value: ${{ steps.create-release.outputs.tag_name }}
+    value: ${{ steps.get-tag.outputs.tag_name }}
 
 runs:
   using: "composite"
@@ -89,8 +94,6 @@ runs:
             prerelease: false,
             generate_release_notes: true,
           });
-
           console.log(`Created release for tag: ${release.data.name}`);
-          core.setOutput('tag_name', release.data.tag_name);
 
-      if: steps.check-changes.outputs.have_only_renovate_commits == '1'
+      if: inputs.create-release == 'true' && steps.check-changes.outputs.have_only_renovate_commits == '1'
