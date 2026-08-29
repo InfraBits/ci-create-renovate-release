@@ -42,9 +42,13 @@ runs:
             c.author?.login === 'renovate[bot]' &&
             c.author?.type === 'Bot' &&
             c.author?.id === 29139614;
+          const isGithubActions = c =>
+            c.author?.login === 'github-actions[bot]' &&
+            c.verification?.verified === true &&
+            c.committer?.id === 19864447
 
-          const renovateCommits = commits.filter(isRenovate);
-          const otherCommits = commits.filter(c => !isRenovate(c));
+          const renovateCommits = commits.filter(c => isRenovate(c) || isGithubActions(c));
+          const otherCommits = commits.filter(c => !isRenovate(c) && !isGithubActions(c));
 
           console.log(`[${latest_tag}] Found ${renovateCommits.length} renovate & ${otherCommits.length} other commits`);
           if (renovateCommits.length > 0 && otherCommits.length === 0) {
