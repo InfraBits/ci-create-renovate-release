@@ -25,10 +25,19 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
         script: |
-          const { data: { tag_name: latest_tag } } = await github.rest.repos.getLatestRelease({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-          });
+          try {
+            const { data: { tag_name: latest_tag } } = await github.rest.repos.getLatestRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+          } catch (error) {
+            if (error.status === 404) {
+              // We may not have a latest release - this is definitely the case for new repos
+              console.log(`No latest release found for ${context.repo.owner}/${context.repo.repo}, skipping logic`);
+              return;
+            }
+            throw error;
+          }
           core.setOutput('latest_tag', latest_tag);
 
           const comparison = await github.rest.repos.compareCommitsWithBasehead({
