@@ -11,6 +11,12 @@ inputs:
     type: string
     default: "true"
 
+  skip-ci-only-changes:
+    description: Skip creating a release if the only changes are for CI
+    required: false
+    type: string
+    default: "true"
+
 outputs:
   tag_name:
     description: The tag name of the created release, or empty if no release was created
@@ -67,9 +73,19 @@ runs:
           const otherCommits = commits.filter(c => !isRenovate(c) && !isGithubActions(c));
 
           console.log(`[${latest_tag}] Found ${renovateCommits.length} renovate & ${otherCommits.length} other commits`);
-          if (renovateCommits.length > 0 && otherCommits.length === 0) {
-            core.setOutput('have_only_renovate_commits', '1');
+          if (renovateCommits.length === 0 || otherCommits.length > 0) {
+            return;
           }
+
+          if ('${{ inputs.skip-ci-only-changes }}' === 'true') {
+            const files = comparison.data.files || [];
+            if (files.length > 0 && files.length < 300 && files.every(f => f.filename.startsWith('.github/'))) {
+              console.log(`[${latest_tag}] Only found changes under .github/, skipping release`);
+              return;
+            }
+          }
+
+          core.setOutput('have_only_renovate_commits', '1');
 
     - name: Calculate next release tag
       id: get-tag
