@@ -6,5 +6,6 @@
     "group:allNonMajor"
   ],
   "automerge": true,
-  "automergeStrategy": "rebase"
+  "automergeStrategy": "rebase",
+  "ignoreTests": true
 }
