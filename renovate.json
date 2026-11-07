@@ -2,10 +2,16 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    "helpers:pinGitHubActionDigests",
-    "group:allNonMajor"
+    "helpers:pinGitHubActionDigests"
   ],
   "automerge": true,
   "automergeStrategy": "rebase",
-  "ignoreTests": true
+  "ignoreTests": true,
+  "packageRules": [
+    {
+      "description": "Group CI updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "CI dependencies"
+    }
+  ]
 }
