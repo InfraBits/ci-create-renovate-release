@@ -7,14 +7,18 @@ inputs:
     required: true
 
   create-release:
+    description: Create a Github release if a new tag has been calculated
     required: false
-    type: string
     default: "true"
 
-  skip-ci-only-changes:
+  skip-ci-changes:
     description: Skip creating a release if the only changes are for CI
     required: false
-    type: string
+    default: "true"
+
+  skip-development-changes:
+    description: Skip creating a release if the only changes are in development dependencies
+    required: false
     default: "true"
 
 outputs:
@@ -25,8 +29,12 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Check changes since last release
-      id: check-changes
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      with:
+        fetch-depth: 0
+
+    - name: Get the latest release tag
+      id: get-release
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
       with:
         github-token: ${{ inputs.github-token }}
@@ -53,46 +61,61 @@ runs:
 
           core.setOutput('latest_tag', latest_tag);
 
-          const comparison = await github.rest.repos.compareCommitsWithBasehead({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            basehead: `${latest_tag}...HEAD`,
-          });
+    - name: Classify the changes
+      id: classify-changes
+      shell: bash
+      run: |
+        changed_files=$(git diff --name-only ${{ steps.get-release.outputs.latest_tag }}...HEAD)
+        
+        # Check for Github action related changes
+        if [ -n "$(grep -E '^\.github/' <<< "${changed_files}")" ];
+        then
+          echo "have_ci_changes=true" >> "$GITHUB_OUTPUT"
+        fi
+        
+        # Check for dependency changes, classifying them as production or development
+        if [ -n "$(grep -E '^(pyproject\.toml|poetry\.lock)$' <<< "${changed_files}")" ];
+        then
+          python3 "${GITHUB_ACTION_PATH}/scripts/poetry.py" "${{ steps.get-release.outputs.latest_tag }}"
+        fi
 
-          const commits = comparison.data.commits;
-          const isRenovate = c =>
-            c.author?.login === 'renovate[bot]' &&
-            c.author?.type === 'Bot' &&
-            c.author?.id === 29139614;
-          const isGithubActions = c =>
-            c.author?.login === 'github-actions[bot]' &&
-            c.verification?.verified === true &&
-            c.committer?.id === 19864447
+        if [ -n "$(grep -E '^(package\.json|package-lock\.json)$' <<< "${changed_files}")" ];
+        then
+          python3 "${GITHUB_ACTION_PATH}/scripts/npm.py" "${{ steps.get-release.outputs.latest_tag }}"
+        fi
 
-          const renovateCommits = commits.filter(c => isRenovate(c) || isGithubActions(c));
-          const otherCommits = commits.filter(c => !isRenovate(c) && !isGithubActions(c));
+        if [ -n "$(grep -E '^(composer\.json|composer\.lock)$' <<< "${changed_files}")" ];
+        then
+          python3 "${GITHUB_ACTION_PATH}/scripts/composer.py" "${{ steps.get-release.outputs.latest_tag }}"
+        fi
 
-          console.log(`[${latest_tag}] Found ${renovateCommits.length} renovate & ${otherCommits.length} other commits`);
-          if (renovateCommits.length === 0 || otherCommits.length > 0) {
-            return;
-          }
-
-          if ('${{ inputs.skip-ci-only-changes }}' === 'true') {
-            const files = comparison.data.files || [];
-            if (files.length > 0 && files.length < 300 && files.every(f => f.filename.startsWith('.github/'))) {
-              console.log(`[${latest_tag}] Only found changes under .github/, skipping release`);
-              return;
-            }
-          }
-
-          core.setOutput('have_only_renovate_commits', '1');
+        # Check for any changes not related to the above
+        if [ -n "$(grep -Ev '^((pyproject\.toml|poetry\.lock|package\.json|package-lock\.json|composer\.json|composer\.lock)$|\.github/)' <<< "${changed_files}")" ];
+        then
+          echo "have_changes=true" >> "$GITHUB_OUTPUT"
+        fi
+      if: steps.get-release.outputs.latest_tag
+      
+    - name: Check authors since the last release
+      id: check-author
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: python3 "${GITHUB_ACTION_PATH}/scripts/check_commits.py" "${{ steps.get-release.outputs.latest_tag }}"
+      if: |
+        steps.get-release.outputs.latest_tag &&
+        (
+          steps.classify-changes.outputs.have_changes == 'true' ||
+          (steps.classify-changes.outputs.have_ci_changes == 'true' && inputs.skip-ci-changes != 'true') ||
+          (steps.classify-changes.outputs.have_development_changes == 'true' && inputs.skip-development-changes != 'true')
+        )
 
     - name: Calculate next release tag
       id: get-tag
       shell: bash
       run: |
         # Assume some semantic ish version, increase the minor version
-        latest_tag="${{ steps.check-changes.outputs.latest_tag }}"
+        latest_tag="${{ steps.get-release.outputs.latest_tag }}"
 
         # If the version is `v<timestamp>` then use the current timestamp
         if [ ! -z "$(grep -E '^v[0-9]+$' <<< "${latest_tag}")" ];
@@ -112,8 +135,7 @@ runs:
 
         echo "Could not figure out tag format: $latest_tag"
         exit 2
-
-      if: steps.check-changes.outputs.have_only_renovate_commits == '1'
+      if: steps.check-author.outputs.have_only_bot_commits == 'true'
 
     - name: Create GitHub release
       id: create-release
@@ -132,4 +154,4 @@ runs:
           });
           console.log(`Created release for tag: ${release.data.name}`);
 
-      if: inputs.create-release == 'true' && steps.check-changes.outputs.have_only_renovate_commits == '1'
+      if: inputs.create-release == 'true' && steps.get-tag.outputs.tag_name
