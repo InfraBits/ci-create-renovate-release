@@ -10,5 +10,5 @@ Create an incremental GitHub release on renovate changes.
     steps:
       - uses: infrabits/ci-create-renovate-release@main
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
