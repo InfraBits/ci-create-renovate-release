@@ -70,6 +70,7 @@ runs:
         # Check for Github action related changes
         if [ -n "$(grep -E '^\.github/' <<< "${changed_files}")" ];
         then
+          echo "Found CI changes"
           echo "have_ci_changes=true" >> "$GITHUB_OUTPUT"
         fi
         
