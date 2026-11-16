@@ -7,6 +7,9 @@ Create an incremental GitHub release on renovate changes.
 ```
   create-renovate-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     steps:
       - uses: infrabits/ci-create-renovate-release@main
         with:
