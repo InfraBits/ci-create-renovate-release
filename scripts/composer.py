@@ -1,7 +1,7 @@
 '''Detect production vs development changes in composer.json & composer.lock.'''
 import json
 
-from common import compare_sections, describe_package, run, show
+from common import compare_sections, describe_package, package_level, run, show
 
 
 def load(ref, path):
@@ -28,7 +28,7 @@ def check(changes, latest_tag):
         for name in sorted(old_packages.keys() | new_packages.keys()):
             old, new = old_packages.get(name), new_packages.get(name)
             if old != new:
-                report(f'composer.lock: {key}: {name}: {describe_package(old, new)}')
+                report(f'composer.lock: {key}: {name}: {describe_package(old, new)}', package_level(old, new))
 
 
 if __name__ == '__main__':

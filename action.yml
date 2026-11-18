@@ -115,7 +115,7 @@ runs:
       id: get-tag
       shell: bash
       run: |
-        # Assume some semantic ish version, increase the minor version
+        # Assume some semantic ish version
         latest_tag="${{ steps.get-release.outputs.latest_tag }}"
 
         # If the version is `v<timestamp>` then use the current timestamp
@@ -126,11 +126,17 @@ runs:
           exit
         fi
 
-        # If the version is semantic, then increase the patch version
+        # If the version is semantic, then increase the minor version for minor dependency changes, otherwise the patch
         if [ ! -z "$(grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<< "${latest_tag}")" ];
         then
-          echo "Latest tag looks like a semantic version, increasing patch"
-          echo "tag_name=$(awk -F '.' '{print $1"."$2"."($3 + 1)}' <<< "${latest_tag}")" >> "$GITHUB_OUTPUT"
+          if [ "${{ steps.classify-changes.outputs.have_minor_changes }}" == "true" ];
+          then
+            echo "Latest tag looks like a semantic version, increasing minor"
+            echo "tag_name=$(awk -F '.' '{print $1"."($2 + 1)".0"}' <<< "${latest_tag}")" >> "$GITHUB_OUTPUT"
+          else
+            echo "Latest tag looks like a semantic version, increasing patch"
+            echo "tag_name=$(awk -F '.' '{print $1"."$2"."($3 + 1)}' <<< "${latest_tag}")" >> "$GITHUB_OUTPUT"
+          fi
           exit
         fi
 

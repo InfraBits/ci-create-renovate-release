@@ -1,7 +1,7 @@
 '''Detect production vs development changes in package.json & package-lock.json.'''
 import json
 
-from common import compare_sections, describe_package, run, show
+from common import compare_sections, describe_package, package_level, run, show
 
 
 def load(ref, path):
@@ -48,9 +48,9 @@ def check(changes, latest_tag):
                              development_keys={'devDependencies'})
         elif all(p.get('dev') for p in (old, new) if p is not None):
             # devOptional packages are also optional production dependencies, so are not counted here
-            changes.development(f'package-lock.json: {path}: {describe_package(old, new)}')
+            changes.development(f'package-lock.json: {path}: {describe_package(old, new)}', package_level(old, new))
         else:
-            changes.production(f'package-lock.json: {path}: {describe_package(old, new)}')
+            changes.production(f'package-lock.json: {path}: {describe_package(old, new)}', package_level(old, new))
 
 
 if __name__ == '__main__':

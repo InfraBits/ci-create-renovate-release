@@ -2,7 +2,7 @@
 import copy
 import re
 
-from common import describe_package, diff, run, show
+from common import describe, describe_package, diff, level, package_level, run, show
 
 try:
     import tomllib
@@ -74,18 +74,18 @@ def check(changes, latest_tag):
     old_pyproject, new_pyproject = load(latest_tag, 'pyproject.toml'), load('HEAD', 'pyproject.toml')
     old_production, old_development = split_pyproject(old_pyproject)
     new_production, new_development = split_pyproject(new_pyproject)
-    for path, description in diff(old_production, new_production):
-        changes.production(f'pyproject.toml: {path}: {description}')
-    for path, description in diff(old_development, new_development):
-        changes.development(f'pyproject.toml: {path}: {description}')
+    for path, old, new in diff(old_production, new_production):
+        changes.production(f'pyproject.toml: {path}: {describe(old, new)}', level(old, new))
+    for path, old, new in diff(old_development, new_development):
+        changes.development(f'pyproject.toml: {path}: {describe(old, new)}', level(old, new))
 
     old_lock, new_lock = load(latest_tag, 'poetry.lock'), load('HEAD', 'poetry.lock')
 
     # content-hash changes with any pyproject change, which is handled above
     old_metadata = {k: v for k, v in old_lock.get('metadata', {}).items() if k != 'content-hash'}
     new_metadata = {k: v for k, v in new_lock.get('metadata', {}).items() if k != 'content-hash'}
-    for path, description in diff(old_metadata, new_metadata, 'metadata'):
-        changes.production(f'poetry.lock: {path}: {description}')
+    for path, old, new in diff(old_metadata, new_metadata, 'metadata'):
+        changes.production(f'poetry.lock: {path}: {describe(old, new)}', level(old, new))
 
     old_packages = {normalise(p['name']): p for p in old_lock.get('package', [])}
     new_packages = {normalise(p['name']): p for p in new_lock.get('package', [])}
@@ -96,7 +96,7 @@ def check(changes, latest_tag):
         if old == new:
             continue
         report = changes.production if name in production else changes.development
-        report(f'poetry.lock: {name}: {describe_package(old, new)}')
+        report(f'poetry.lock: {name}: {describe_package(old, new)}', package_level(old, new))
 
 
 if __name__ == '__main__':
